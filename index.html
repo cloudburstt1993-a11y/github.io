@@ -157,8 +157,9 @@
 
 <script>
 /* ============================================================
-   CONFIG: Embedded data (v1) + per-class backgrounds & colors
+   CONFIG: Remote data URL + Embedded fallback (per-class backgrounds & colors)
    ============================================================ */
+const REMOTE_DATA_URL = "https://gist.githubusercontent.com/cloudburstt1993-a11y/9f6efd6f354fe463b69b6592afa46c7b/raw/5d2a85ac9db32d932eb857d1bd12b67bfa1fe6e8/data.json";
 
 const EMBEDDED = {
   updated: "2025-09-01T00:00:00Z",
@@ -171,7 +172,7 @@ const EMBEDDED = {
           media: {
             traits: "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?q=80&w=1600&auto=format&fit=crop",
             skills: "https://images.unsplash.com/photo-1603006905003-c9b532d0f370?q=80&w=1600&auto=format&fit=crop",
-            gear:   "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?q=80&w=1600&auto=format&fit=crop",
+            gear:   "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?q=80&w=1600&auto=format&fit=crop"
           },
           builds: [
             { id:"a1", label:"Act 1", milestones:[
@@ -510,10 +511,6 @@ const EMBEDDED = {
   }
 };
 
-/* Optional future: put a URL here, the app will fetch once/day and override embedded data */
-const REMOTE_DATA_URL = "https://raw.githubusercontent.com/YOUR-USERNAME/poe2-data/main/data.json";
-
-
 /* ============================================================
    STATE & HELPERS
    ============================================================ */
@@ -676,12 +673,12 @@ function renderTraits(){
 function renderSkills(){
   const cls=CUR_CLASS, bld=CUR_BUILD;
   const data = DATA.classes[cls].builds[bld];
-  const img = document.getElementById('skillsGrid'); img.innerHTML='';
+  const grid = document.getElementById('skillsGrid'); grid.innerHTML='';
   // left media
   const mediaCard=document.createElement('div'); mediaCard.className='imgWrap';
   mediaCard.innerHTML = `<img src="${data.media?.skills || ''}" alt="Skills image"><div class="caption">Skill & link snapshot (tap to zoom).</div>`;
   mediaCard.querySelector('img').onclick=()=>{const u=data.media?.skills; if(u) window.open(u,'_blank');};
-  img.appendChild(mediaCard);
+  grid.appendChild(mediaCard);
   // right lists
   const listCol=document.createElement('div'); listCol.className='grid';
   (data.skills||[]).forEach(block=>{
@@ -693,7 +690,7 @@ function renderSkills(){
     });
     listCol.appendChild(card);
   });
-  img.appendChild(listCol);
+  grid.appendChild(listCol);
 }
 
 function renderGear(){
@@ -771,19 +768,26 @@ async function maybeRefreshRemote(){
   if(!REMOTE_DATA_URL) return false;
   const now = Date.now();
   const cached = JSON.parse(localStorage.getItem(LS_REMOTE)||'{}');
-  if(cached.data && (now - (cached.ts||0) < 24*60*60*1000)){
-    DATA = cached.data; liveBadge.textContent = 'Live ✓ (cached ≤24h)'; liveBadge.classList.remove('danger');
+  // Use cache if fetched within last 24h and URL matches
+  if(cached.data && cached.url === REMOTE_DATA_URL && (now - (cached.ts||0) < 24*60*60*1000)){
+    DATA = cached.data;
+    liveBadge.textContent = 'Live ✓ (cached ≤24h)';
+    liveBadge.classList.remove('danger');
     return true;
   }
   try{
-    const REMOTE_DATA_URL = "https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/data.json";
+    const res = await fetch(REMOTE_DATA_URL, { cache: 'no-store' });
     if(!res.ok) throw new Error('remote not ok');
-    const json=await res.json();
-    DATA=json; localStorage.setItem(LS_REMOTE, JSON.stringify({ts:now,data:json}));
-    liveBadge.textContent='Live ✓ (fresh)'; liveBadge.classList.remove('danger');
+    const json = await res.json();
+    DATA = json;
+    localStorage.setItem(LS_REMOTE, JSON.stringify({ ts: now, data: json, url: REMOTE_DATA_URL }));
+    liveBadge.textContent = 'Live ✓ (fresh)';
+    liveBadge.classList.remove('danger');
     return true;
   }catch(e){
-    liveBadge.textContent='Offline (embedded)'; liveBadge.classList.add('danger');
+    console.error(e);
+    liveBadge.textContent = 'Offline (embedded)';
+    liveBadge.classList.add('danger');
     return false;
   }
 }
@@ -791,6 +795,7 @@ async function maybeRefreshRemote(){
 /* Boot */
 (async function boot(){
   await maybeRefreshRemote();
+  // initialize selectors and first render
   populateSelectors();
   CUR_CLASS = CUR_CLASS || Object.keys(DATA.classes)[0];
   CUR_BUILD = CUR_BUILD || Object.keys(DATA.classes[CUR_CLASS].builds)[0];
