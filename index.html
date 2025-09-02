@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>POE2 Companion – Builds · Traits · Skills · Gear</title>
+<meta name="theme-color" content="#0b0d12"/>
+
+<style>
+  :root{
+    --bg:#0b0d12; --fg:#e9edf3; --muted:#a8b2c2;
+    --panel:#11151d; --panel2:#151b24; --border:#263042; --border2:#324055;
+    --good:#2f9e66; --warn:#f5a524; --bad:#c55252;
+    --accent:#48baff; /* will be overridden per class */
+    --gap:12px; --rad:14px;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#0b0d12;color:var(--fg);font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;min-height:100%}
+
+  /* Background: per-class art with readable overlay */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:-2;
+    background: var(--bg) center/cover no-repeat;
+    background-image: var(--bg-img, none);
+    filter: saturate(1.05) contrast(1.05) brightness(.9);
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(80% 60% at 50% -10%, rgba(0,0,0,.55), rgba(0,0,0,.85) 65%),
+      linear-gradient(180deg, rgba(5,7,10,.55), rgba(5,7,10,.9) 40%, rgba(5,7,10,.95));
+  }
+
+  header{
+    position:sticky; top:0; z-index:20; backdrop-filter: blur(10px);
+    background: rgba(10,12,16,.75); border-bottom:1px solid var(--border);
+  }
+  .topbar{display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 12px}
+  h1{margin:0; font-size:16px; letter-spacing:.3px; flex:1}
+  .pick{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  label{font-size:12px; color:var(--muted)}
+  select, .btn{
+    background:#151a22; border:1px solid #354154; color:var(--fg); border-radius:10px;
+    padding:8px 10px; font-size:14px
+  }
+  .tabs{display:flex; gap:6px; padding:10px 12px; border-top:1px solid var(--border)}
+  .tab{padding:8px 12px; border-radius:999px; border:1px solid #334058; cursor:pointer; user-select:none}
+  .tab.active{background:var(--accent); color:#061018; border-color:transparent; font-weight:700}
+
+  .wrap{padding:var(--gap)}
+  .panel{
+    background:rgba(18,22,30,.9); border:1px solid var(--border); border-radius:var(--rad);
+    padding:12px; margin-bottom:var(--gap)
+  }
+  .panelTitle{display:flex; align-items:center; gap:10px; justify-content:space-between; margin-bottom:8px}
+  .badge{font-size:12px; color:#cfd8e6; border:1px solid var(--border2); padding:3px 8px; border-radius:999px}
+  .accent{color:var(--accent)}
+  .progress{height:12px; background:#121821; border-radius:10px; overflow:hidden; margin:8px 0}
+  .bar{height:100%; width:0; background:linear-gradient(90deg, var(--accent), #8be0ff); transition:width .25s}
+  .grid{display:grid; gap:10px}
+  @media(min-width:900px){ .grid.cols-2{grid-template-columns:1fr 1fr} }
+
+  /* Quest-style cards */
+  .actCard{border:1px solid var(--border2); border-radius:12px; overflow:hidden; background:#10161f}
+  .actHead{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; background:#0e141d; cursor:pointer}
+  .actTitle{font-weight:700}
+  .actBody{padding:10px 12px; display:none}
+  .actBody.open{display:block}
+  .msCard{border:1px solid #2a3548; border-radius:10px; padding:10px; margin:8px 0; background:rgba(18,22,30,.9)}
+  .msDone{background:rgba(47,158,102,.12); border-color:#2f9e66}
+  .req{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border:1px solid #2a3344; border-radius:8px; background:#0f151e; margin:5px 0}
+  .req.ok{border-color:#2f9e66} .req.bad{border-color:#c55252}
+  .req label{font-size:13px; color:#cfd8e6}
+  .req input[type="number"]{width:90px; background:#0c1119; border:1px solid #2a3344; color:var(--fg); border-radius:8px; padding:6px 8px}
+  .req input[type="checkbox"]{transform:scale(1.2)}
+  .reqNote{font-size:12px; color:#98a6bb}
+  .stat{font-size:12px; color:#9fc7ff}
+
+  /* Media blocks */
+  .imgWrap{border:1px solid var(--border2); border-radius:12px; overflow:hidden; background:#0e141c}
+  .imgWrap img{display:block; width:100%; height:auto}
+  .caption{padding:8px 10px; font-size:12px; color:#cfd8e6; background:#0e141c}
+
+  .foot{display:flex; gap:8px; flex-wrap:wrap; justify-content:space-between; align-items:center}
+  .pill{font-size:12px; border:1px solid #2a4; background:rgba(45,150,95,.2); color:#cfeadf; padding:6px 10px; border-radius:999px}
+  .danger{border-color:#944; background:rgba(150,60,60,.2); color:#ffd7d7}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="topbar">
+    <h1>POE2 Companion</h1>
+    <div class="pick">
+      <label for="classPick">Class</label>
+      <select id="classPick"></select>
+      <label for="buildPick">Build</label>
+      <select id="buildPick"></select>
+    </div>
+    <div class="foot">
+      <span id="liveBadge" class="pill danger">Offline (embedded)</span>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="builds">Builds</div>
+    <div class="tab" data-tab="traits">Traits</div>
+    <div class="tab" data-tab="skills">Skills</div>
+    <div class="tab" data-tab="gear">Gear</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- BUILDS -->
+  <section id="tab-builds" class="panel">
+    <div class="panelTitle">
+      <div><span class="accent">Build Progress</span></div>
+      <div class="badge" id="progressBadge">0 / 0 complete</div>
+    </div>
+    <div class="progress"><div class="bar" id="progressBar"></div></div>
+    <div id="buildsTree"></div>
+  </section>
+
+  <!-- TRAITS -->
+  <section id="tab-traits" class="panel" style="display:none">
+    <div class="panelTitle">
+      <div><span class="accent">Traits & Talents</span></div>
+      <div class="badge" id="traitsBadge">Guide snapshot</div>
+    </div>
+    <div class="grid cols-2">
+      <div id="traitsImg" class="imgWrap"><img alt="Traits tree" src=""><div class="caption">Talent/Trait path snapshot (tap to zoom in a new tab).</div></div>
+      <div id="traitsList" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- SKILLS -->
+  <section id="tab-skills" class="panel" style="display:none">
+    <div class="panelTitle">
+      <div><span class="accent">Skills & Links</span></div>
+      <div class="badge">Leveling → Endgame</div>
+    </div>
+    <div class="grid cols-2" id="skillsGrid"></div>
+  </section>
+
+  <!-- GEAR -->
+  <section id="tab-gear" class="panel" style="display:none">
+    <div class="panelTitle">
+      <div><span class="accent">Gear Planner</span></div>
+      <div class="badge">Best-in-slot targets & priorities</div>
+    </div>
+    <div class="grid cols-2">
+      <div id="gearImg" class="imgWrap"><img alt="Gear overview" src=""><div class="caption">Suggested endgame snapshot (tap to zoom in a new tab).</div></div>
+      <div id="gearSections" class="grid"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG: Embedded data (v1) + per-class backgrounds & colors
+   ============================================================ */
+
+const EMBEDDED = {
+  updated: "2025-09-01T00:00:00Z",
+  classes: {
+    Huntress: {
+      accent: "#4ddc7f",
+      background: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop",
+      builds: {
+        "Lightning Spear Amazon": {
+          media: {
+            traits: "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?q=80&w=1600&auto=format&fit=crop",
+            skills: "https://images.unsplash.com/photo-1603006905003-c9b532d0f370?q=80&w=1600&auto=format&fit=crop",
+            gear:   "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?q=80&w=1600&auto=format&fit=crop",
+          },
+          builds: [
+            { id:"a1", label:"Act 1", milestones:[
+              { id:"a1_primal", label:"Primal Sundering Online", reqs:[
+                {id:"spear", kind:"chk", label:"Equip a spear"},
+                {id:"ps_socket", kind:"chk", label:"Socket Primal Sundering"},
+                {id:"lvl12", kind:"num", label:"Level ≥", target:12}
+              ]},
+              { id:"a1_ls", label:"Lightning Spear Online", reqs:[
+                {id:"ls_gem", kind:"chk", label:"Acquire LS gem"},
+                {id:"ls_socket", kind:"chk", label:"Socket LS"},
+                {id:"ls_lvl3", kind:"num", label:"Gem ≥", target:3}
+              ]},
+              { id:"a1_basics", label:"Basics Online", reqs:[
+                {id:"hot_on", kind:"chk", label:"Enable Herald of Thunder"},
+                {id:"ms20", kind:"num", label:"Boots MS ≥ %", target:20},
+                {id:"life200", kind:"num", label:"Max Life ≥", target:200},
+                {id:"unres70", kind:"num", label:"Unreserved Mana ≤ %", target:70, lte:true}
+              ]}
+            ]},
+            { id:"a2", label:"Act 2", milestones:[
+              { id:"a2_frenzy", label:"+Frenzy Cluster Path", reqs:[
+                {id:"path", kind:"chk", label:"Allocate path to Frenzy cluster"},
+                {id:"frc3", kind:"num", label:"Frenzy charges ≥", target:3}
+              ]},
+              { id:"a2_single", label:"Single-Target Window", reqs:[
+                {id:"st_link", kind:"chk", label:"Link single-target support"},
+                {id:"st_lvl5", kind:"num", label:"Core ST gem ≥", target:5}
+              ]},
+              { id:"a2_res", label:"Boss-Ready Defenses", reqs:[
+                {id:"avgres60", kind:"num", label:"Avg resist ≥ %", target:60},
+                {id:"flasks", kind:"chk", label:"1–2 defensive flasks prepared"}
+              ]}
+            ]},
+            { id:"a3", label:"Act 3", milestones:[
+              { id:"a3_spear", label:"Spear Mastery & Weapon", reqs:[
+                {id:"path_mastery", kind:"chk", label:"Path to Spear Mastery"},
+                {id:"wdps65", kind:"num", label:"Weapon DPS ≥", target:65}
+              ]},
+              { id:"a3_shock", label:"Shock Scaling Online", reqs:[
+                {id:"shock_nodes", kind:"chk", label:"Pick shock/crit nodes"},
+                {id:"shock60", kind:"num", label:"Shock chance ≥ %", target:60}
+              ]},
+              { id:"a3_asc", label:"Ascendancy #1", reqs:[
+                {id:"trial", kind:"chk", label:"Complete trial & ascend"}
+              ]}
+            ]}
+          ],
+          traits: [
+            {label:"Early tree path", items:[
+              "Head toward **Accuracy/Attack Speed** near start.",
+              "Pick **Lightning/Elemental** smalls en route to Spear clusters."
+            ]},
+            {label:"Ascendancy #1", items:[
+              "Take the **Lightning-focused node** to amp LS damage and shock."
+            ]},
+            {label:"Defensive picks", items:[
+              "Grab **Life wheels** you pass; cap resists before major bosses."
+            ]}
+          ],
+          skills: [
+            {label:"Acts 1–2", notes:"Clear with Primal Sundering → swap to Lightning Spear when gem is ready.", list:[
+              "Lightning Spear + (Projectile / Chain / Added Lightning)",
+              "Movement: Disengage / Dash",
+              "Aura: Herald of Thunder"
+            ]},
+            {label:"Acts 3–4", notes:"Single-target window when needed; maintain shock uptime.", list:[
+              "LS + Conduction + (Crit/Added Light)",
+              "Storm Lance situationally for clear"
+            ]},
+            {label:"Act 5+ / Early Maps", notes:"Push crit & shock; weapon DPS check.", list:[
+              "LS + 4–5 links as available; keep HoT on; add Guard skill"
+            ]}
+          ],
+          gear: [
+            {label:"Early (Acts 1–2)", checklist:[
+              {id:"wdps20", kind:"num", label:"Spear DPS ≥", target:20},
+              {id:"boots20", kind:"num", label:"Boots MS ≥ %", target:20},
+              {id:"ring_acc", kind:"chk", label:"+Accuracy ring"}
+            ]},
+            {label:"Mid (Acts 3–4)", checklist:[
+              {id:"wdps65", kind:"num", label:"Spear DPS ≥", target:65},
+              {id:"res60", kind:"num", label:"Avg resist ≥ %", target:60},
+              {id:"flask_def", kind:"chk", label:"Granite/Topaz ready"}
+            ]},
+            {label:"End of Campaign", checklist:[
+              {id:"crit_spear", kind:"chk", label:"Crit-chance spear"},
+              {id:"shock_scale", kind:"chk", label:"Shock/crit jewels or nodes"},
+              {id:"life400", kind:"num", label:"Max Life ≥", target:400}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Ranger: {
+      accent:"#66ccff",
+      background:"https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Lightning Arrow Deadeye":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"r_a1",label:"Act 1",milestones:[
+              {id:"r_bow",label:"Bow online",reqs:[
+                {id:"bow",kind:"chk",label:"Equip fast bow"},
+                {id:"la",kind:"chk",label:"Lightning Arrow gem"},
+                {id:"proj",kind:"chk",label:"Link Projectile support"}
+              ]}
+            ]},
+            {id:"r_a2",label:"Act 2",milestones:[
+              {id:"r_speed",label:"Clear speed online",reqs:[
+                {id:"chain",kind:"chk",label:"Chain/Pierce support"},
+                {id:"ms20",kind:"num",label:"Boots MS ≥ %",target:20}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"Deadeye early",items:["Projectile speed / chain","Some life nodes while pathing"]}
+          ],
+          skills:[
+            {label:"Acts 1–2",notes:"LA for clear; add Pierce/Chain as links allow.",list:["LA + Added Lightning + Pierce/Chain","Dash / Smoke Mine"]}
+          ],
+          gear:[
+            {label:"Early",checklist:[
+              {id:"bowspd",kind:"chk",label:"Attack-speed bow"},
+              {id:"flatlight",kind:"chk",label:"Flat lightning on ring/quiver"}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Warrior:{
+      accent:"#ff9966",
+      background:"https://images.unsplash.com/photo-1601582585289-9f9c09f7a0b0?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Warbringer Totems":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1518112166137-85f9979a43a5?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1549880338-65ddcdfd017b?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1617806118233-18e1df9c7b7d?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"w_a1",label:"Act 1",milestones:[
+              {id:"w_tot",label:"Totems online",reqs:[
+                {id:"gem",kind:"chk",label:"Acquire totem skill"},
+                {id:"link",kind:"chk",label:"Link Melee/Fissure support"}
+              ]}
+            ]},
+            {id:"w_a2",label:"Act 2",milestones:[
+              {id:"w_def",label:"Defense ready",reqs:[
+                {id:"life250",kind:"num",label:"Max Life ≥",target:250},
+                {id:"res60",kind:"num",label:"Avg resist ≥ %",target:60}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"Ascend path",items:["Take Warbringer notable early","Grab life + armor clusters while pathing"]}
+          ],
+          skills:[
+            {label:"Acts 1–3",notes:"Totems clear safely; refresh often.",list:["Shockwave/Fissure Totem + Melee Phys + Added Fire"]}
+          ],
+          gear:[
+            {label:"Campaign",checklist:[
+              {id:"2h_mace",kind:"chk",label:"Slow 2H with high base"},
+              {id:"granite",kind:"chk",label:"Granite flask"}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Witch:{
+      accent:"#a877ff",
+      background:"https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Minion Army Lich":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1504805572947-34fad45aed93?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1549880338-65ddcdfd017b?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"wi_a1",label:"Act 1",milestones:[
+              {id:"rs_online",label:"Raging Spirits / Minions",reqs:[
+                {id:"rs",kind:"chk",label:"Socket RS"},
+                {id:"min_nodes",kind:"chk",label:"Allocate minion dmg/speed"}
+              ]}
+            ]},
+            {id:"wi_a2",label:"Act 2",milestones:[
+              {id:"aura_wall",label:"Aura & Wall",reqs:[
+                {id:"aura_on",kind:"chk",label:"Aura(s) on"},
+                {id:"min8",kind:"num",label:"Active minions ≥",target:8}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"Early tree",items:["Minion damage/speed clusters","Life on the way to big nodes"]}
+          ],
+          skills:[
+            {label:"Acts 1–3",notes:"Spam RS; add zombies/spectres later",list:["RS + Minion Dmg + Minion Speed","Guard skill"]}
+          ],
+          gear:[
+            {label:"Campaign",checklist:[
+              {id:"wand_minion",kind:"chk",label:"+Minion wand"},
+              {id:"life_res",kind:"chk",label:"+Life & resists on armor"}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Sorceress:{
+      accent:"#55c7ff",
+      background:"https://images.unsplash.com/photo-1482192505345-5655af888cc4?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Stormweaver (Arc/Spark)":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1517816428104-797678c7cf0d?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"s_a1",label:"Act 1",milestones:[
+              {id:"sp_online",label:"Spark/Arc online",reqs:[
+                {id:"spark",kind:"chk",label:"Acquire Spark/Arc"},
+                {id:"gl3",kind:"num",label:"Gem ≥",target:3}
+              ]}
+            ]},
+            {id:"s_a2",label:"Act 2",milestones:[
+              {id:"mana",label:"Mana/Aura",reqs:[
+                {id:"aura",kind:"chk",label:"Aura on"},
+                {id:"unres70",kind:"num",label:"Unreserved ≤ %",target:70,lte:true}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"Stormweaver path",items:["Lightning/Elemental nodes","Some life & mana on path"]}
+          ],
+          skills:[
+            {label:"Acts 1–3",notes:"Spark/Arc core with added lightning/crit later",list:["Spark/Arc + Added Lightning + (Proj/Crit)","Dash/TP, Guard skill"]}
+          ],
+          gear:[
+            {label:"Campaign",checklist:[
+              {id:"+spell",kind:"chk",label:"+Spell/lightning wand"},
+              {id:"res60",kind:"num",label:"Avg resist ≥ %",target:60}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Monk:{
+      accent:"#6ee7d8",
+      background:"https://images.unsplash.com/photo-1520975746885-2c7f1beee0e2?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Hollow Palm":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1549880338-65ddcdfd017b?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"m_a1",label:"Act 1",milestones:[
+              {id:"hp_online",label:"HP technique online",reqs:[
+                {id:"no_weapon",kind:"chk",label:"Unequip weapons (HP)"},
+                {id:"skill",kind:"chk",label:"Slot Ice Strike/Storm Wave"}
+              ]}
+            ]},
+            {id:"m_a2",label:"Act 2",milestones:[
+              {id:"ctrl",label:"Control & freeze",reqs:[
+                {id:"freeze30",kind:"num",label:"Freeze ≥ %",target:30},
+                {id:"cdr2",kind:"num",label:"CDR ≤ s",target:2,lte:true}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"HP path",items:["Dex stacks early","Take freeze/crit later if cold"]}
+          ],
+          skills:[
+            {label:"Acts 1–3",notes:"HP + fast skills",list:["Ice Strike / Storm Wave / Falling Thunder","Dash + Guard"]}
+          ],
+          gear:[
+            {label:"Campaign",checklist:[
+              {id:"dex_gear",kind:"chk",label:"+Dex gear"},
+              {id:"res",kind:"num",label:"Avg resist ≥ %",target:60}
+            ]}
+          ]
+        }
+      }
+    },
+
+    Mercenary:{
+      accent:"#ffcc66",
+      background:"https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop",
+      builds:{
+        "Crossbow Grenadier":{
+          media:{
+            traits:"https://images.unsplash.com/photo-1517816428104-797678c7cf0d?q=80&w=1600&auto=format&fit=crop",
+            skills:"https://images.unsplash.com/photo-1520975918318-9e6bb04d08a0?q=80&w=1600&auto=format&fit=crop",
+            gear:"https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop"
+          },
+          builds:[
+            {id:"me_a1",label:"Act 1",milestones:[
+              {id:"gren",label:"Grenades online",reqs:[
+                {id:"grenade",kind:"chk",label:"Explosive Grenade gem"},
+                {id:"rapid",kind:"chk",label:"Rapid Shot/Reload support"}
+              ]}
+            ]},
+            {id:"me_a2",label:"Act 2",milestones:[
+              {id:"clear",label:"Clear speed",reqs:[
+                {id:"aoe",kind:"chk",label:"Add AoE/Chain support"},
+                {id:"ms20",kind:"num",label:"Boots MS ≥ %",target:20}
+              ]}
+            ]}
+          ],
+          traits:[
+            {label:"Marksman path",items:["Projectile/Explosive nodes","Life while pathing"]}
+          ],
+          skills:[
+            {label:"Acts 1–3",notes:"Grenades delete packs; keep movement up",list:["Explosive Grenade + Blast Radius + Added Fire","Dash/Hook, Guard"]}
+          ],
+          gear:[
+            {label:"Campaign",checklist:[
+              {id:"xbow_spd",kind:"chk",label:"Fast crossbow"},
+              {id:"res60",kind:"num",label:"Avg resist ≥ %",target:60}
+            ]}
+          ]
+        }
+      }
+    }
+  }
+};
+
+/* Optional future: put a URL here, the app will fetch once/day and override embedded data */
+const REMOTE_DATA_URL = ""; // e.g. "https://your-domain/data.json"
+
+/* ============================================================
+   STATE & HELPERS
+   ============================================================ */
+const $ = q => document.querySelector(q);
+const classPick = $('#classPick');
+const buildPick = $('#buildPick');
+const progressBar = $('#progressBar');
+const progressBadge = $('#progressBadge');
+const buildsTree = $('#buildsTree');
+const liveBadge = $('#liveBadge');
+
+const tabs = [...document.querySelectorAll('.tab')];
+const pages = {
+  builds: $('#tab-builds'),
+  traits: $('#tab-traits'),
+  skills: $('#tab-skills'),
+  gear: $('#tab-gear')
+};
+
+let DATA = JSON.parse(JSON.stringify(EMBEDDED)); // clone
+let CUR_CLASS = null, CUR_BUILD = null;
+
+const storageKey = (c,b) => `poe2_progress_${c}__${b}`;
+const loadState = (c,b) => { try { return JSON.parse(localStorage.getItem(storageKey(c,b))||'{}'); } catch(_) { return {}; } };
+const saveState = (c,b,st) => localStorage.setItem(storageKey(c,b), JSON.stringify(st));
+
+function setAccentAndBg(cls){
+  const c = DATA.classes[cls];
+  document.documentElement.style.setProperty('--accent', c.accent);
+  document.body.style.setProperty('--bg-img', `url(${c.background})`);
+}
+
+function populateSelectors(){
+  classPick.innerHTML = '';
+  Object.keys(DATA.classes).forEach(cls=>{
+    const o=document.createElement('option'); o.value=cls; o.textContent=cls; classPick.appendChild(o);
+  });
+  CUR_CLASS = CUR_CLASS || Object.keys(DATA.classes)[0];
+  classPick.value = CUR_CLASS;
+  refreshBuilds();
+}
+
+function refreshBuilds(){
+  const cls = classPick.value;
+  const builds = DATA.classes[cls].builds;
+  buildPick.innerHTML = '';
+  Object.keys(builds).forEach(b=>{
+    const o=document.createElement('option'); o.value=b; o.textContent=b; buildPick.appendChild(o);
+  });
+  CUR_BUILD = CUR_BUILD || Object.keys(builds)[0];
+  buildPick.value = CUR_BUILD;
+}
+
+function setActiveTab(name){
+  tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  Object.entries(pages).forEach(([k,el])=> el.style.display = k===name ? 'block' : 'none');
+}
+
+/* ============================================================
+   RENDER: BUILDS (Acts/Milestones with checklists)
+   ============================================================ */
+function pct(n,d){ return d?Math.round((n/d)*100):0; }
+
+function renderBuilds(){
+  const cls = CUR_CLASS, bld = CUR_BUILD;
+  setAccentAndBg(cls);
+
+  const acts = DATA.classes[cls].builds[bld].builds || [];
+  const st = loadState(cls,bld);
+  buildsTree.innerHTML = '';
+
+  let total=0, done=0;
+
+  acts.forEach(act=>{
+    const actBox = document.createElement('div'); actBox.className='actCard';
+    const head = document.createElement('div'); head.className='actHead';
+    const title = document.createElement('div'); title.className='actTitle'; title.textContent=act.label;
+    const stat = document.createElement('div'); stat.className='stat'; head.appendChild(title); head.appendChild(stat);
+    const body = document.createElement('div'); body.className='actBody open';
+    head.addEventListener('click',()=> body.classList.toggle('open'));
+    actBox.appendChild(head); actBox.appendChild(body);
+
+    let actAllDone=true;
+
+    act.milestones.forEach(ms=>{
+      total++;
+      const msBox = document.createElement('div'); msBox.className='msCard';
+      const mTitle = document.createElement('div'); mTitle.innerHTML = `<strong>${ms.label}</strong>`;
+      msBox.appendChild(mTitle);
+
+      const cur = st[ms.id] || {};
+      let met=0;
+
+      ms.reqs.forEach(r=>{
+        const req = document.createElement('div'); req.className='req';
+        const left = document.createElement('label');
+        left.textContent = r.label + (r.kind==='num' ? ` ${r.lte?'≤':'≥'} ${r.target}` : '');
+        req.appendChild(left);
+        let ok=false;
+
+        if(r.kind==='num'){
+          const inp=document.createElement('input'); inp.type='number'; inp.value = cur[r.id] ?? '';
+          inp.addEventListener('input',()=>{
+            const all=loadState(cls,bld); all[ms.id]=all[ms.id]||{}; all[ms.id][r.id]=inp.value; saveState(cls,bld,all); renderBuilds();
+          });
+          req.appendChild(inp);
+          const val = Number(cur[r.id]);
+          if(!isNaN(val)){ ok = r.lte ? (val<=r.target) : (val>=r.target); }
+        }else{
+          const inp=document.createElement('input'); inp.type='checkbox'; inp.checked = !!cur[r.id];
+          inp.addEventListener('change',()=>{
+            const all=loadState(cls,bld); all[ms.id]=all[ms.id]||{}; all[ms.id][r.id]=inp.checked; saveState(cls,bld,all); renderBuilds();
+          });
+          req.appendChild(inp);
+          ok = !!cur[r.id];
+        }
+
+        if(ok){ req.classList.add('ok'); met++; }
+        else if(cur[r.id]!==undefined && cur[r.id]!=="" ){ req.classList.add('bad'); }
+        body.appendChild(req);
+      });
+
+      const allMet = (ms.reqs?.length||0) > 0 && met===ms.reqs.length;
+      if(allMet){ msBox.classList.add('msDone'); done++; } else { actAllDone=false; }
+      body.appendChild(msBox);
+    });
+
+    stat.textContent = actAllDone ? '✅ Complete' : '—';
+    buildsTree.appendChild(actBox);
+  });
+
+  progressBadge.textContent = `${done} / ${total} complete`;
+  progressBar.style.width = pct(done,total) + '%';
+}
+
+/* ============================================================
+   RENDER: TRAITS / SKILLS / GEAR
+   ============================================================ */
+function renderTraits(){
+  const cls=CUR_CLASS, bld=CUR_BUILD;
+  const data = DATA.classes[cls].builds[bld];
+  // image
+  const imgWrap = document.getElementById('traitsImg').querySelector('img');
+  imgWrap.src = data.media?.traits || '';
+  imgWrap.onclick = ()=>{ if(imgWrap.src) window.open(imgWrap.src, '_blank'); };
+  // list
+  const list = document.getElementById('traitsList'); list.innerHTML='';
+  (data.traits||[]).forEach(section=>{
+    const card=document.createElement('div'); card.className='msCard';
+    const h=document.createElement('div'); h.innerHTML=`<strong>${section.label}</strong>`;
+    card.appendChild(h);
+    section.items.forEach(t=>{
+      const li=document.createElement('div'); li.className='req'; li.innerHTML=`<span>${t}</span>`;
+      card.appendChild(li);
+    });
+    list.appendChild(card);
+  });
+}
+
+function renderSkills(){
+  const cls=CUR_CLASS, bld=CUR_BUILD;
+  const data = DATA.classes[cls].builds[bld];
+  const img = document.getElementById('skillsGrid'); img.innerHTML='';
+  // left media
+  const mediaCard=document.createElement('div'); mediaCard.className='imgWrap';
+  mediaCard.innerHTML = `<img src="${data.media?.skills || ''}" alt="Skills image"><div class="caption">Skill & link snapshot (tap to zoom).</div>`;
+  mediaCard.querySelector('img').onclick=()=>{const u=data.media?.skills; if(u) window.open(u,'_blank');};
+  img.appendChild(mediaCard);
+  // right lists
+  const listCol=document.createElement('div'); listCol.className='grid';
+  (data.skills||[]).forEach(block=>{
+    const card=document.createElement('div'); card.className='msCard';
+    card.innerHTML = `<div><strong>${block.label}</strong><div class="reqNote">${block.notes||''}</div></div>`;
+    (block.list||[]).forEach(line=>{
+      const row=document.createElement('div'); row.className='req'; row.innerHTML=`<span>${line}</span>`;
+      card.appendChild(row);
+    });
+    listCol.appendChild(card);
+  });
+  img.appendChild(listCol);
+}
+
+function renderGear(){
+  const cls=CUR_CLASS, bld=CUR_BUILD;
+  const data = DATA.classes[cls].builds[bld];
+  const img=document.getElementById('gearImg').querySelector('img');
+  img.src = data.media?.gear || '';
+  img.onclick = ()=>{ if(img.src) window.open(img.src,'_blank'); };
+  const sec = document.getElementById('gearSections'); sec.innerHTML='';
+  const st = loadState(cls,bld); // reuse same storage to track gear checks if numeric/checkbox
+  (data.gear||[]).forEach(section=>{
+    const card=document.createElement('div'); card.className='msCard';
+    const h=document.createElement('div'); h.innerHTML = `<strong>${section.label}</strong>`;
+    card.appendChild(h);
+    (section.checklist||[]).forEach(r=>{
+      const cur = st[`gear_${section.label}`]?.[r.id] ?? undefined;
+      const row=document.createElement('div'); row.className='req';
+      const left=document.createElement('label');
+      left.textContent = r.label + (r.kind==='num' ? ` ${r.lte?'≤':'≥'} ${r.target}` : '');
+      row.appendChild(left);
+      let ok=false;
+      if(r.kind==='num'){
+        const inp=document.createElement('input'); inp.type='number'; inp.value = cur ?? '';
+        inp.addEventListener('input',()=>{
+          const all=loadState(cls,bld);
+          all[`gear_${section.label}`]=all[`gear_${section.label}`]||{};
+          all[`gear_${section.label}`][r.id]=inp.value;
+          saveState(cls,bld,all); renderGear();
+        });
+        row.appendChild(inp);
+        const val = Number(cur); if(!isNaN(val)){ ok = r.lte ? (val<=r.target) : (val>=r.target); }
+      } else {
+        const inp=document.createElement('input'); inp.type='checkbox'; inp.checked = !!cur;
+        inp.addEventListener('change',()=>{
+          const all=loadState(cls,bld);
+          all[`gear_${section.label}`]=all[`gear_${section.label}`]||{};
+          all[`gear_${section.label}`][r.id]=inp.checked;
+          saveState(cls,bld,all); renderGear();
+        });
+        row.appendChild(inp);
+        ok = !!cur;
+      }
+      if(ok) row.classList.add('ok'); else if(cur!==undefined && cur!=="") row.classList.add('bad');
+      card.appendChild(row);
+    });
+    sec.appendChild(card);
+  });
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function renderAll(){
+  setAccentAndBg(CUR_CLASS);
+  renderBuilds();
+  renderTraits();
+  renderSkills();
+  renderGear();
+}
+classPick.addEventListener('change',()=>{
+  CUR_CLASS = classPick.value; CUR_BUILD=null; refreshBuilds(); renderAll();
+});
+buildPick.addEventListener('change',()=>{
+  CUR_BUILD = buildPick.value; renderAll();
+});
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  setActiveTab(t.dataset.tab);
+}));
+
+/* ============================================================
+   OPTIONAL DAILY REFRESH FROM REMOTE (if URL set)
+   ============================================================ */
+const LS_REMOTE = 'poe2_remote_data_v1';
+async function maybeRefreshRemote(){
+  if(!REMOTE_DATA_URL) return false;
+  const now = Date.now();
+  const cached = JSON.parse(localStorage.getItem(LS_REMOTE)||'{}');
+  if(cached.data && (now - (cached.ts||0) < 24*60*60*1000)){
+    DATA = cached.data; liveBadge.textContent = 'Live ✓ (cached ≤24h)'; liveBadge.classList.remove('danger');
+    return true;
+  }
+  try{
+    const res=await fetch(REMOTE_DATA_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error('remote not ok');
+    const json=await res.json();
+    DATA=json; localStorage.setItem(LS_REMOTE, JSON.stringify({ts:now,data:json}));
+    liveBadge.textContent='Live ✓ (fresh)'; liveBadge.classList.remove('danger');
+    return true;
+  }catch(e){
+    liveBadge.textContent='Offline (embedded)'; liveBadge.classList.add('danger');
+    return false;
+  }
+}
+
+/* Boot */
+(async function boot(){
+  await maybeRefreshRemote();
+  populateSelectors();
+  CUR_CLASS = CUR_CLASS || Object.keys(DATA.classes)[0];
+  CUR_BUILD = CUR_BUILD || Object.keys(DATA.classes[CUR_CLASS].builds)[0];
+  classPick.value = CUR_CLASS; buildPick.value = CUR_BUILD;
+  setActiveTab('builds');
+  renderAll();
+})();
+</script>
+</body>
+</html>
