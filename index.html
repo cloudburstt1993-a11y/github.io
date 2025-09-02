@@ -511,7 +511,8 @@ const EMBEDDED = {
 };
 
 /* Optional future: put a URL here, the app will fetch once/day and override embedded data */
-const REMOTE_DATA_URL = ""; // e.g. "https://your-domain/data.json"
+const REMOTE_DATA_URL = "https://raw.githubusercontent.com/YOUR-USERNAME/poe2-data/main/data.json";
+
 
 /* ============================================================
    STATE & HELPERS
@@ -775,7 +776,7 @@ async function maybeRefreshRemote(){
     return true;
   }
   try{
-    const res=await fetch(REMOTE_DATA_URL,{cache:'no-store'});
+    const REMOTE_DATA_URL = "https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/data.json";
     if(!res.ok) throw new Error('remote not ok');
     const json=await res.json();
     DATA=json; localStorage.setItem(LS_REMOTE, JSON.stringify({ts:now,data:json}));
